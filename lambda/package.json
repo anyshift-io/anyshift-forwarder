@@ -1,0 +1,41 @@
+{
+  "name": "anyshift-cloudtrail-forwarder",
+  "version": "1.0.0",
+  "description": "Lambda function to forward CloudTrail logs from S3 to Anyshift backend",
+  "type": "module",
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js --external:@aws-sdk/*",
+    "package": "npm run build && cd dist && zip -r ../lambda.zip .",
+    "clean": "rm -rf dist lambda.zip",
+    "format": "prettier --check .",
+    "format-fix": "prettier --write .",
+    "lint": "eslint .",
+    "lint-fix": "eslint --fix .",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run format && npm run lint && npm run typecheck",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0",
+    "@eslint/js": "^9.17.0",
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.24.0",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "husky": "^9.1.7",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@aws-sdk/client-secrets-manager": "^3.700.0",
+    "@aws-lambda-powertools/logger": "^2.0.0"
+  }
+}
