@@ -168,6 +168,9 @@ jobs:
     name: Update Release Notes with Layer ARNs
     needs: publish-layers
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
     permissions:
       contents: write
       id-token: write
