@@ -8,7 +8,7 @@ import { Readable, Writable } from 'stream';
 
 // Initialize Powertools Logger
 const logger = new Logger({
-  serviceName: 'anyshift-cloudtrail-forwarder',
+  serviceName: 'anyshift-forwarder',
   logLevel: (process.env.LOG_LEVEL || 'INFO') as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR',
 });
 
@@ -44,7 +44,7 @@ const getToken = async (): Promise<string> => {
   if (TOKEN_SECRET_ARN) {
     logger.info('Fetching token from Secrets Manager');
     const response = await secretsClient.send(
-      new GetSecretValueCommand({ SecretId: TOKEN_SECRET_ARN })
+      new GetSecretValueCommand({ SecretId: TOKEN_SECRET_ARN }),
     );
     if (response.SecretString) {
       cachedToken = response.SecretString;
@@ -160,7 +160,7 @@ const storeFailedEvent = async (
   bucket: string,
   sourceFile: string,
   payload: string,
-  error: Error
+  error: Error,
 ): Promise<void> => {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const key = `failed-events/${timestamp}/${sourceFile.replace(/\//g, '_')}.json`;
@@ -178,7 +178,7 @@ const storeFailedEvent = async (
       Key: key,
       Body: JSON.stringify(failedEvent, null, 2),
       ContentType: 'application/json',
-    })
+    }),
   );
 
   logger.info('Stored failed event', { bucket, key: `s3://${bucket}/${key}` });
@@ -193,7 +193,7 @@ const sendWithRetry = async (
   payload: string,
   sourceFile: string,
   chunkIndex?: number,
-  totalChunks?: number
+  totalChunks?: number,
 ): Promise<void> => {
   let lastError: Error | null = null;
 
@@ -201,14 +201,17 @@ const sendWithRetry = async (
   let body: Buffer | string = payload;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
+    Authorization: `Bearer ${token}`,
     'X-Source-File': sourceFile,
   };
 
   if (USE_COMPRESSION) {
     body = gzipSync(payload);
     headers['Content-Encoding'] = 'gzip';
-    logger.debug('Compressed payload', { originalSize: payload.length, compressedSize: body.length });
+    logger.debug('Compressed payload', {
+      originalSize: payload.length,
+      compressedSize: body.length,
+    });
   }
 
   // Add chunk headers if chunking
@@ -240,12 +243,19 @@ const sendWithRetry = async (
 
       // Last attempt - don't wait, just throw
       if (attempt === MAX_RETRIES - 1) {
-        logger.error('All retry attempts failed', { maxRetries: MAX_RETRIES, error: lastError.message });
+        logger.error('All retry attempts failed', {
+          maxRetries: MAX_RETRIES,
+          error: lastError.message,
+        });
         break;
       }
 
       const backoffMs = calculateBackoff(attempt);
-      logger.warn('Retry attempt failed', { attempt: attempt + 1, error: lastError.message, backoffMs: Math.round(backoffMs) });
+      logger.warn('Retry attempt failed', {
+        attempt: attempt + 1,
+        error: lastError.message,
+        backoffMs: Math.round(backoffMs),
+      });
       await sleep(backoffMs);
     }
   }
@@ -327,9 +337,8 @@ export const handler = async (event: S3Event, context: Context): Promise<void> =
     // - managementEvent: false = data plane (S3 GetObject, Lambda Invoke, etc.)
     // Note: Some CloudTrail files omit managementEvent field entirely,
     // so we use !== false instead of === true to include those events
-    const relevantEvents = cloudTrailLogs.Records.filter(r =>
-      !r.errorCode &&
-      r.managementEvent !== false
+    const relevantEvents = cloudTrailLogs.Records.filter(
+      r => !r.errorCode && r.managementEvent !== false,
     );
 
     const skippedCount = cloudTrailLogs.Records.length - relevantEvents.length;
@@ -344,7 +353,10 @@ export const handler = async (event: S3Event, context: Context): Promise<void> =
     const chunks = chunkRecords(relevantEvents);
 
     if (chunks.length > 1) {
-      logger.info('Splitting events into chunks', { eventCount: relevantEvents.length, chunkCount: chunks.length });
+      logger.info('Splitting events into chunks', {
+        eventCount: relevantEvents.length,
+        chunkCount: chunks.length,
+      });
     }
 
     // POST each chunk to Anyshift backend with retries
@@ -360,9 +372,16 @@ export const handler = async (event: S3Event, context: Context): Promise<void> =
         chunks.length > 1 ? chunks.length : undefined,
       );
 
-      logger.info('Forwarded chunk', { chunkIndex: i + 1, totalChunks: chunks.length, eventCount: chunk.length });
+      logger.info('Forwarded chunk', {
+        chunkIndex: i + 1,
+        totalChunks: chunks.length,
+        eventCount: chunk.length,
+      });
     }
 
-    logger.info('Successfully forwarded events', { eventCount: relevantEvents.length, sourceFile: key });
+    logger.info('Successfully forwarded events', {
+      eventCount: relevantEvents.length,
+      sourceFile: key,
+    });
   }
 };

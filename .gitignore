@@ -12,6 +12,9 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 
+# Build artifacts
+build/
+
 # Lambda build artifacts
 lambda/node_modules/
 lambda/dist/

@@ -1,0 +1,226 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+env:
+  CI: true
+  LAYER_NAME: anyshift-forwarder
+  AWS_ACCOUNT_ID: "211125758836"
+  AWS_ROLE_ARN: "arn:aws:iam::211125758836:role/github-actions-forwarder-release"
+
+defaults:
+  run:
+    shell: bash
+    working-directory: lambda
+
+jobs:
+  build-and-upload:
+    name: Build and Upload Release Assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      zip_name: ${{ steps.rename.outputs.zip_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'lambda/.nvmrc'
+          cache: 'npm'
+          cache-dependency-path: 'lambda/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build Lambda package
+        run: npm run package
+
+      - name: Create release artifacts
+        id: rename
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+
+          # Regular zip for direct deployment
+          ZIP_NAME="anyshift-forwarder-${VERSION}.zip"
+          mv lambda.zip "$ZIP_NAME"
+
+          # Layer-structured zip for Lambda layers
+          # Structure: nodejs/node_modules/anyshift-forwarder/index.js
+          LAYER_ZIP="anyshift-forwarder-layer-${VERSION}.zip"
+          mkdir -p layer-tmp/nodejs/node_modules/anyshift-forwarder
+          cp dist/index.js layer-tmp/nodejs/node_modules/anyshift-forwarder/
+          cd layer-tmp && zip -r "../$LAYER_ZIP" nodejs && cd ..
+          rm -rf layer-tmp
+
+          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
+          echo "layer_zip=$LAYER_ZIP" >> $GITHUB_OUTPUT
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: lambda/${{ steps.rename.outputs.zip_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate SHA256 checksum
+        run: |
+          sha256sum "${{ steps.rename.outputs.zip_name }}" > "${{ steps.rename.outputs.zip_name }}.sha256"
+
+      - name: Upload Checksum
+        uses: softprops/action-gh-release@v2
+        with:
+          files: lambda/${{ steps.rename.outputs.zip_name }}.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload layer zip artifact for publishing
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-layer-zip
+          path: lambda/${{ steps.rename.outputs.layer_zip }}
+
+  publish-layers:
+    name: Publish Lambda Layers
+    needs: build-and-upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+    strategy:
+      matrix:
+        region:
+          - us-east-1
+          - us-east-2
+          - us-west-1
+          - us-west-2
+          - eu-west-1
+          - eu-west-2
+          - eu-west-3
+          - eu-central-1
+          - eu-north-1
+          - ap-northeast-1
+          - ap-northeast-2
+          - ap-southeast-1
+          - ap-southeast-2
+          - ap-south-1
+          - sa-east-1
+          - ca-central-1
+    steps:
+      - name: Download layer zip artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-layer-zip
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ matrix.region }}
+
+      - name: Publish Lambda Layer
+        id: publish
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          LAYER_ZIP="anyshift-forwarder-layer-${VERSION}.zip"
+
+          # Publish the layer (structured as nodejs/node_modules/anyshift-forwarder/)
+          LAYER_VERSION=$(aws lambda publish-layer-version \
+            --layer-name "${{ env.LAYER_NAME }}" \
+            --description "Anyshift Forwarder ${VERSION}" \
+            --zip-file "fileb://${LAYER_ZIP}" \
+            --compatible-runtimes nodejs24.x \
+            --compatible-architectures arm64 x86_64 \
+            --license-info "MIT" \
+            --query 'Version' \
+            --output text)
+
+          echo "layer_version=$LAYER_VERSION" >> $GITHUB_OUTPUT
+          echo "Published layer version $LAYER_VERSION in ${{ matrix.region }}"
+
+      - name: Make layer public
+        run: |
+          # Use || true to handle re-runs where permission already exists
+          aws lambda add-layer-version-permission \
+            --layer-name "${{ env.LAYER_NAME }}" \
+            --version-number "${{ steps.publish.outputs.layer_version }}" \
+            --statement-id "public-access" \
+            --action "lambda:GetLayerVersion" \
+            --principal "*" || echo "Permission already exists, skipping"
+
+          LAYER_ARN="arn:aws:lambda:${{ matrix.region }}:${{ env.AWS_ACCOUNT_ID }}:layer:${{ env.LAYER_NAME }}:${{ steps.publish.outputs.layer_version }}"
+          echo "Layer ARN: $LAYER_ARN"
+          echo "$LAYER_ARN" >> $GITHUB_STEP_SUMMARY
+
+  update-release-notes:
+    name: Update Release Notes with Layer ARNs
+    needs: publish-layers
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Generate layer ARNs list
+        id: arns
+        run: |
+          ACCOUNT_ID="${{ env.AWS_ACCOUNT_ID }}"
+
+          REGIONS=(
+            "us-east-1" "us-east-2" "us-west-1" "us-west-2"
+            "eu-west-1" "eu-west-2" "eu-west-3" "eu-central-1" "eu-north-1"
+            "ap-northeast-1" "ap-northeast-2" "ap-southeast-1" "ap-southeast-2" "ap-south-1"
+            "sa-east-1" "ca-central-1"
+          )
+
+          echo "## Lambda Layer ARNs" > layer_arns.md
+          echo "" >> layer_arns.md
+          echo "Use the layer ARN for your region:" >> layer_arns.md
+          echo "" >> layer_arns.md
+          echo '| Region | Layer ARN |' >> layer_arns.md
+          echo '|--------|-----------|' >> layer_arns.md
+
+          for REGION in "${REGIONS[@]}"; do
+            # Query the latest layer version for this region
+            LAYER_VERSION=$(aws lambda list-layer-versions \
+              --layer-name anyshift-forwarder \
+              --region "$REGION" \
+              --query 'LayerVersions[0].Version' \
+              --output text 2>/dev/null || echo "N/A")
+
+            if [ "$LAYER_VERSION" != "N/A" ] && [ "$LAYER_VERSION" != "None" ]; then
+              echo "| $REGION | \`arn:aws:lambda:${REGION}:${ACCOUNT_ID}:layer:anyshift-forwarder:${LAYER_VERSION}\` |" >> layer_arns.md
+            fi
+          done
+
+          # Store as output
+          ARNS_CONTENT=$(cat layer_arns.md)
+          echo "arns<<EOF" >> $GITHUB_OUTPUT
+          echo "$ARNS_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Append to release notes
+        uses: softprops/action-gh-release@v2
+        with:
+          append_body: true
+          body: |
+
+            ---
+
+            ${{ steps.arns.outputs.arns }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

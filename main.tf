@@ -4,7 +4,7 @@
 locals {
   # Extract bucket name from ARN: arn:aws:s3:::bucket-name -> bucket-name
   bucket_name   = element(split(":", var.cloudtrail_bucket_arn), 5)
-  function_name = "anyshift-cloudtrail-forwarder"
+  function_name = "anyshift-forwarder"
 
   # Failed events bucket name (auto-generate if not provided)
   failed_events_bucket = var.store_failed_events ? (
@@ -133,17 +133,63 @@ resource "aws_iam_role_policy" "lambda_failed_events_policy" {
   })
 }
 
+# Universal bootstrap that loads handler from layer (works with CJS and ESM)
+# Layer structure: nodejs/node_modules/anyshift-forwarder/index.js
+data "archive_file" "layer_bootstrap" {
+  count       = var.lambda_layer_arn != null ? 1 : 0
+  type        = "zip"
+  output_path = "${path.module}/build/bootstrap.zip"
+
+  source {
+    content  = <<-EOF
+      'use strict';
+
+      let cached;
+      async function load() {
+        if (cached) return cached;
+        try {
+          cached = require('anyshift-forwarder');
+        } catch (e) {
+          cached = await import('anyshift-forwarder');
+        }
+        return cached;
+      }
+
+      exports.handler = async (event, context) => {
+        const mod = await load();
+        const h = mod.handler || (mod.default && mod.default.handler);
+        if (typeof h !== 'function') throw new Error('anyshift-forwarder: handler export not found');
+        return h(event, context);
+      };
+    EOF
+    filename = "index.js"
+  }
+}
+
 # Lambda function
 resource "aws_lambda_function" "cloudtrail_forwarder" {
-  # Use layer if provided, otherwise use zip deployment
-  filename         = var.lambda_layer_arn == null ? "${path.module}/lambda/lambda.zip" : null
-  source_code_hash = var.lambda_layer_arn == null ? filebase64sha256("${path.module}/lambda/lambda.zip") : null
-  layers           = var.lambda_layer_arn != null ? [var.lambda_layer_arn] : []
+  # Deployment source (in order of precedence):
+  # 1. Lambda layer ARN if provided (recommended - no local build needed)
+  # 2. S3 bucket/key if provided
+  # 3. Local zip file as fallback
+  filename = (
+    var.lambda_layer_arn != null ? data.archive_file.layer_bootstrap[0].output_path :
+    var.lambda_s3_bucket != null ? null :
+    "${path.module}/lambda/lambda.zip"
+  )
+  source_code_hash = (
+    var.lambda_layer_arn != null ? data.archive_file.layer_bootstrap[0].output_base64sha256 :
+    var.lambda_s3_bucket != null ? null :
+    filebase64sha256("${path.module}/lambda/lambda.zip")
+  )
+  s3_bucket = var.lambda_layer_arn == null ? var.lambda_s3_bucket : null
+  s3_key    = var.lambda_layer_arn == null ? var.lambda_s3_key : null
+  layers    = var.lambda_layer_arn != null ? [var.lambda_layer_arn] : []
 
   function_name = local.function_name
   role          = aws_iam_role.lambda_role.arn
   handler       = "index.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs24.x"
   timeout       = var.lambda_timeout
   memory_size   = var.lambda_memory_size
 
