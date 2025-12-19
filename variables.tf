@@ -11,7 +11,7 @@ variable "cloudtrail_bucket_arn" {
 variable "anyshift_base_url" {
   description = "Anyshift backend base URL"
   type        = string
-  default     = "https://humane-pheasant-lively.ngrok-free.app"
+  default     = "https://api.anyshift.io"
 }
 
 variable "anyshift_token" {
@@ -94,9 +94,22 @@ variable "kms_key_arn" {
   default     = null
 }
 
-# Lambda Layer (optional - for easier updates)
+# Lambda Layer (recommended - no local build needed)
 variable "lambda_layer_arn" {
-  description = "ARN of a Lambda layer containing the forwarder code (if provided, uses layer instead of zip deployment)"
+  description = "ARN of the public Lambda layer (e.g., arn:aws:lambda:us-east-1:211125758836:layer:anyshift-forwarder:1)"
+  type        = string
+  default     = null
+}
+
+# Advanced: custom S3 deployment (alternative to layer)
+variable "lambda_s3_bucket" {
+  description = "S3 bucket containing the Lambda zip"
+  type        = string
+  default     = null
+}
+
+variable "lambda_s3_key" {
+  description = "S3 key for the Lambda zip file"
   type        = string
   default     = null
 }

@@ -1,14 +1,14 @@
 {
-  "name": "anyshift-cloudtrail-forwarder",
+  "name": "anyshift-forwarder",
   "version": "1.0.0",
   "description": "Lambda function to forward CloudTrail logs from S3 to Anyshift backend",
   "type": "module",
   "main": "dist/index.js",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js --external:@aws-sdk/*",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node24 --outfile=dist/index.js --external:@aws-sdk/*",
     "package": "npm run build && cd dist && zip -r ../lambda.zip .",
     "clean": "rm -rf dist lambda.zip",
     "format": "prettier --check .",
@@ -24,7 +24,7 @@
     "@commitlint/config-conventional": "^19.6.0",
     "@eslint/js": "^9.17.0",
     "@types/aws-lambda": "^8.10.145",
-    "@types/node": "^20.0.0",
+    "@types/node": "^24.0.0",
     "esbuild": "^0.24.0",
     "eslint": "^9.17.0",
     "globals": "^15.14.0",
