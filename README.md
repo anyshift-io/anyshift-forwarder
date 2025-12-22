@@ -24,7 +24,7 @@ module "anyshift_forwarder" {
   anyshift_token        = var.anyshift_token
 
   # Use pre-built Lambda layer (no local build needed)
-  lambda_layer_arn = "arn:aws:lambda:us-east-1:211125758836:layer:anyshift-forwarder:1"
+  lambda_layer_arn = "arn:aws:lambda:us-east-1:211125758836:layer:anyshift-forwarder:2"
 }
 ```
 
