@@ -16,6 +16,7 @@ const s3Client = new S3Client({});
 const secretsClient = new SecretsManagerClient({});
 
 // Configuration from environment
+const FORWARDER_VERSION = process.env.FORWARDER_VERSION || 'unknown';
 const USE_COMPRESSION = process.env.USE_COMPRESSION !== 'false'; // default true
 const STORE_FAILED_EVENTS = process.env.STORE_FAILED_EVENTS === 'true';
 const FAILED_EVENTS_BUCKET = process.env.FAILED_EVENTS_BUCKET;
@@ -203,6 +204,7 @@ const sendWithRetry = async (
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
     'X-Source-File': sourceFile,
+    'X-Forwarder-Version': FORWARDER_VERSION,
   };
 
   if (USE_COMPRESSION) {

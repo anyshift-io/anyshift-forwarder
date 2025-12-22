@@ -6,6 +6,9 @@ locals {
   bucket_name   = element(split(":", var.cloudtrail_bucket_arn), 5)
   function_name = "anyshift-forwarder"
 
+  # Extract layer version from ARN: arn:aws:lambda:REGION:ACCOUNT:layer:NAME:VERSION -> VERSION
+  layer_version = var.lambda_layer_arn != null ? element(split(":", var.lambda_layer_arn), 7) : null
+
   # Failed events bucket name (auto-generate if not provided)
   failed_events_bucket = var.store_failed_events ? (
     var.failed_events_bucket_name != null ? var.failed_events_bucket_name : "${local.function_name}-failed-events-${var.aws_account_id}"
@@ -211,9 +214,11 @@ resource "aws_lambda_function" "cloudtrail_forwarder" {
       var.anyshift_token_secret_arn != null ? { ANYSHIFT_TOKEN_SECRET_ARN = var.anyshift_token_secret_arn } : {},
       # Failed events configuration
       var.store_failed_events ? {
-        STORE_FAILED_EVENTS = "true"
+        STORE_FAILED_EVENTS  = "true"
         FAILED_EVENTS_BUCKET = local.failed_events_bucket
-      } : {}
+      } : {},
+      # Layer version for heartbeat tracking
+      local.layer_version != null ? { FORWARDER_VERSION = local.layer_version } : {}
     )
   }
 
