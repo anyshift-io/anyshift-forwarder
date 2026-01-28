@@ -8,7 +8,7 @@ env:
   CI: true
   LAYER_NAME: anyshift-forwarder
   AWS_ACCOUNT_ID: "211125758836"
-  AWS_ROLE_ARN: "arn:aws:iam::211125758836:role/github-actions-forwarder-release"
+  AWS_ROLE_ARN: "arn:aws:iam::211125758836:role/anyshift-forwarder-gha-oidc-prd"
 
 defaults:
   run:
