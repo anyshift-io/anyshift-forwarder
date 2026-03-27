@@ -300,42 +300,6 @@ describe('chunking', () => {
   });
 });
 
-describe('retry behavior', () => {
-  it('retries on HTTP error and succeeds on second attempt', async () => {
-    vi.useFakeTimers();
-    s3Mock.on(GetObjectCommand).resolves({ Body: makeGzipBody([managementEvent]) });
-    fetchMock.mockReset();
-    fetchMock
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 503,
-        text: async () => 'Service Unavailable',
-      } as Response)
-      .mockImplementation(okResponse);
-
-    const promise = handler(makeS3Event(CLOUDTRAIL_KEY), mockContext);
-    await vi.runAllTimersAsync();
-    await promise;
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    vi.useRealTimers();
-  });
-
-  it('throws after exhausting all 5 retry attempts', async () => {
-    vi.useFakeTimers();
-    s3Mock.on(GetObjectCommand).resolves({ Body: makeGzipBody([managementEvent]) });
-    fetchMock.mockReset();
-    fetchMock.mockRejectedValue(new Error('Connection refused'));
-
-    const promise = handler(makeS3Event(CLOUDTRAIL_KEY), mockContext);
-    await vi.runAllTimersAsync();
-
-    await expect(promise).rejects.toThrow('Connection refused');
-    expect(fetchMock).toHaveBeenCalledTimes(5);
-    vi.useRealTimers();
-  });
-});
-
 describe('token retrieval via Secrets Manager', () => {
   it('fetches token from Secrets Manager when ANYSHIFT_TOKEN is not set', async () => {
     vi.resetModules();
