@@ -347,11 +347,9 @@ describe('token retrieval via Secrets Manager', () => {
     const freshS3Mock = mockClient(FreshS3Client);
     const freshSMMock = mockClient(FreshSMClient);
 
-    freshS3Mock
-      .on(FreshGetObjectCommand)
-      .resolves({
-        Body: makeGzipBody([managementEvent]) as unknown as GetObjectCommandOutput['Body'],
-      });
+    freshS3Mock.on(FreshGetObjectCommand).resolves({
+      Body: makeGzipBody([managementEvent]) as unknown as GetObjectCommandOutput['Body'],
+    });
     freshSMMock.on(FreshGetSecretCommand).resolves({ SecretString: 'sm-retrieved-token' });
 
     const { handler: freshHandler } = await import('./index.js');
