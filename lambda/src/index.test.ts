@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import { mockClient } from 'aws-sdk-client-mock';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import type { GetObjectCommandOutput } from '@aws-sdk/client-s3';
 import type { S3Event, Context } from 'aws-lambda';
 import { gzipSync, gunzipSync } from 'zlib';
