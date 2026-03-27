@@ -11,8 +11,7 @@ import { handler } from './index.js';
 const s3Mock = mockClient(S3Client);
 const secretsMock = mockClient(SecretsManagerClient);
 
-// Typed fetch mock
-const fetchMock = vi.fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>();
+const fetchMock = vi.fn();
 
 const mockContext: Context = {
   callbackWaitsForEmptyEventLoop: false,
@@ -140,9 +139,9 @@ describe('file filtering', () => {
     const encodedKey = 'AWSLogs/123/CloudTrail/us-east-1/2024/test+file.json.gz';
     s3Mock.on(GetObjectCommand).resolves({ Body: makeGzipBody([managementEvent]) });
     await handler(makeS3Event(encodedKey), mockContext);
-    expect(s3Mock).toHaveReceivedCommandWith(GetObjectCommand, {
-      Key: 'AWSLogs/123/CloudTrail/us-east-1/2024/test file.json.gz',
-    });
+    const call = s3Mock.commandCalls(GetObjectCommand).at(0);
+    expect(call).toBeDefined();
+    expect(call!.args[0].input.Key).toBe('AWSLogs/123/CloudTrail/us-east-1/2024/test file.json.gz');
   });
 });
 
@@ -188,7 +187,7 @@ describe('event filtering', () => {
 
     const lastArgs = fetchMock.mock.calls.at(-1);
     expect(lastArgs).toBeDefined();
-    const body = (lastArgs as [string, RequestInit])[1].body;
+    const body = (lastArgs as unknown as [string, RequestInit])[1].body;
     expect(body).toBeInstanceOf(Buffer);
     const payload = JSON.parse(gunzipSync(body as Buffer).toString()) as {
       Records: unknown[];
@@ -277,7 +276,10 @@ describe('chunking', () => {
 
     const firstArgs = fetchMock.mock.calls.at(0);
     expect(firstArgs).toBeDefined();
-    const headers = (firstArgs as [string, RequestInit])[1].headers as Record<string, string>;
+    const headers = (firstArgs as unknown as [string, RequestInit])[1].headers as Record<
+      string,
+      string
+    >;
     expect(headers['X-Chunk-Index']).toBe('0');
     expect(headers['X-Total-Chunks']).toBe('2');
   });
@@ -289,7 +291,10 @@ describe('chunking', () => {
 
     const firstArgs = fetchMock.mock.calls.at(0);
     expect(firstArgs).toBeDefined();
-    const headers = (firstArgs as [string, RequestInit])[1].headers as Record<string, string>;
+    const headers = (firstArgs as unknown as [string, RequestInit])[1].headers as Record<
+      string,
+      string
+    >;
     expect(headers['X-Chunk-Index']).toBeUndefined();
     expect(headers['X-Total-Chunks']).toBeUndefined();
   });
