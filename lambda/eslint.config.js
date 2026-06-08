@@ -46,6 +46,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['node_modules', 'dist', 'coverage', '*.js', '*.cjs'],
+    ignores: ['node_modules', 'dist', 'coverage', '*.js', '*.cjs', 'vitest.config.ts'],
   },
 );
