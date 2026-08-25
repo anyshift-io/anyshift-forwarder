@@ -18,7 +18,7 @@ defaults:
 jobs:
   build-and-upload:
     name: Build and Upload Release Assets
-    runs-on: ${{ vars.USE_GITHUB_HOSTED == 'true' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
@@ -91,7 +91,7 @@ jobs:
   publish-layers:
     name: Publish Lambda Layers
     needs: build-and-upload
-    runs-on: ${{ vars.USE_GITHUB_HOSTED == 'true' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
       run:
@@ -167,7 +167,7 @@ jobs:
   update-release-notes:
     name: Update Release Notes with Layer ARNs
     needs: publish-layers
-    runs-on: ${{ vars.USE_GITHUB_HOSTED == 'true' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: .
