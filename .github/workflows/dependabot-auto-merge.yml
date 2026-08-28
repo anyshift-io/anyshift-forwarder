@@ -4,11 +4,13 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-permissions:
-  contents: write
-  pull-requests: write
+# Default-deny; grant only what auto-merge needs at the job level.
+permissions: {}
 
 jobs:
   auto-merge:
     if: github.actor == 'dependabot[bot]'
+    permissions:
+      contents: write
+      pull-requests: write
     uses: anyshift-io/custom_github_actions/.github/workflows/reusable-dependabot-auto-merge.yml@491a5649d722d9463edcdfafc4aee5cabb887689 # v2026-03-24
