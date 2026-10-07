@@ -160,3 +160,17 @@ npm run package   # create lambda.zip
 ## License
 
 MIT
+
+## Manual pull request validation
+
+Validation workflows do not start automatically when a pull request opens or receives a commit. Run the relevant validation from GitHub Actions using the default branch and the pull request number, or from `gh`:
+
+Slack notifications still run automatically when a GitHub reviewer is requested.
+
+```sh
+gh workflow run <workflow-file> --ref main --repo anyshift-io/anyshift-forwarder -f pr_number=<pull-request-number>
+```
+
+The workflow resolves and checks out the pull request's current head, including heads from forks. Re-run required checks after each new commit; a successful run must match the pull request’s latest commit. Supply any required workflow inputs.
+
+Manual workflow files: `.github/workflows/pr.yml`.
