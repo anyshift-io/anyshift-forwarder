@@ -163,7 +163,7 @@ MIT
 
 ## Manual pull request validation
 
-PR workflows do not start automatically when a pull request opens or receives a commit. Run the relevant validation from GitHub Actions using the default branch and the pull request number, or from `gh`:
+Validation workflows do not start automatically when a pull request opens or receives a commit. Run the relevant validation from GitHub Actions using the default branch and the pull request number, or from `gh`:
 
 ```sh
 gh workflow run <workflow-file> --ref main --repo anyshift-io/anyshift-forwarder -f pr_number=<pull-request-number>
