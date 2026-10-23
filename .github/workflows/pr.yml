@@ -5,10 +5,13 @@ on:
         description: Pull request number to validate
         required: true
         type: number
+  # Merge queue entries run the required checks on the queued merge result.
+  merge_group:
+    types: [checks_requested]
 
 # cancel previous runs on the same PR
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.pr_number }}
+  group: ${{ github.workflow }}-${{ inputs.pr_number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -38,6 +41,10 @@ jobs:
         with:
           github-token: ${{ github.token }}
           script: |-
+            if (context.eventName === 'merge_group') {
+              core.setOutput('sha', context.sha);
+              return;
+            }
             const pullNumber = Number(process.env.PR_NUMBER);
             if (!Number.isInteger(pullNumber) || pullNumber < 1) {
               core.setFailed('pr_number must be a positive integer');

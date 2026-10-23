@@ -14,3 +14,7 @@ Slack notifications still run automatically when a GitHub reviewer is requested.
   ```
 
 Replace `<workflow-file>` with the workflow path and `<pull-request-number>` with the PR number. Add `-f name=value` for each additional required workflow input. Confirm every required status has passed on the current PR head before merging.
+
+## Merge queue
+
+`main` merges through a GitHub merge queue. Add PRs to the queue instead of merging directly. When a PR is behind `main`, do not re-sync with `main` and re-dispatch CI in a loop; the queue rebuilds and re-checks the merge commit. Keep the `merge_group` trigger on every required-check workflow (`pr.yml`) so the queue can report their checks.
